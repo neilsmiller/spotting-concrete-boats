@@ -172,9 +172,9 @@ credentials.json
 *.pem
 
 # Agent-specific (personal working files)
-.agents/context/
-.agents/patterns/
-.agents/resources/
+.agents/*
 
 agents.md
 claude.md
+
+data/*

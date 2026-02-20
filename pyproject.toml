@@ -2,13 +2,16 @@
 name = "spotting-concrete-boats"
 version = "0.1.0"
 description = "Research project for spotting concrete boats"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.39.0",
-    "pdf2image>=1.16.0",
+    "pydantic>=2.0.0",
+    "pdfplumber>=0.10.0",
+    "python-docx>=1.0.0",
     "requests>=2.31.0",
     "pandas>=2.0.0",
     "python-dotenv>=1.0.0",
+    "ipykernel>=6.25.0",
 ]
 
 [project.optional-dependencies]
@@ -22,7 +25,7 @@ dev = [
 
 [tool.black]
 line-length = 100
-target-version = ['py39']
+target-version = ['py311']
 
 [tool.ruff]
 line-length = 100
@@ -37,7 +40,7 @@ select = [
 ignore = []
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -48,4 +51,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["analyze_concrete_boats*"]
+include = ["spotting_concrete_boats*"]
