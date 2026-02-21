@@ -26,10 +26,12 @@ DOCUMENT_MEDIA_TYPES = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".txt": "text/plain",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".csv": "text/csv",
 }
 
 # File types we know we can't send directly to Claude
-UNSUPPORTED_EXTENSIONS = {".xls", ".xlsx", ".csv", ".doc"}
+UNSUPPORTED_EXTENSIONS = {".xls", ".doc"}
 
 
 def get_supported_extensions() -> set[str]:
@@ -78,6 +80,7 @@ def extract_text_from_pdf(file_path: str | Path, max_pages: int = 200) -> str:
         Extracted text with page delimiters.
     """
     pages = []
+    truncated_from = None
     with pdfplumber.open(file_path) as pdf:
         if len(pdf.pages) > max_pages:
             logger.warning(
@@ -86,6 +89,7 @@ def extract_text_from_pdf(file_path: str | Path, max_pages: int = 200) -> str:
                 len(pdf.pages),
                 max_pages,
             )
+            truncated_from = len(pdf.pages)
 
         for i, page in enumerate(pdf.pages[:max_pages], start=1):
             page_parts = [f"--- Page {i} ---"]
@@ -114,7 +118,10 @@ def extract_text_from_pdf(file_path: str | Path, max_pages: int = 200) -> str:
 
             pages.append("\n".join(page_parts))
 
-    return "\n\n".join(pages)
+    text = "\n\n".join(pages)
+    if truncated_from:
+        text = f"[Note: PDF truncated from {truncated_from} to {max_pages} pages]\n\n" + text
+    return text
 
 
 def extract_text_from_docx(file_path: str | Path) -> str:
@@ -146,10 +153,65 @@ def extract_text_from_txt(file_path: str | Path) -> str:
         return f.read()
 
 
+def extract_text_from_xlsx(file_path: str | Path) -> str:
+    """Extract text from an .xlsx file using openpyxl.
+
+    Each sheet is rendered as pipe-delimited rows, matching the format used
+    for PDF table extraction.
+
+    Args:
+        file_path: Path to the .xlsx file.
+
+    Returns:
+        Extracted text with sheet headers and pipe-delimited rows.
+    """
+    import openpyxl
+
+    wb = openpyxl.load_workbook(str(file_path), read_only=True, data_only=True)
+    sheets = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            cells = [str(cell) if cell is not None else "" for cell in row]
+            if any(c.strip() for c in cells):
+                rows.append(" | ".join(cells))
+        if rows:
+            sheets.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(rows))
+    wb.close()
+    return "\n\n".join(sheets)
+
+
+def extract_text_from_csv(file_path: str | Path) -> str:
+    """Extract text from a .csv file.
+
+    Renders rows as pipe-delimited text, matching the format used for
+    PDF table extraction and .xlsx files.
+
+    Args:
+        file_path: Path to the .csv file.
+
+    Returns:
+        Pipe-delimited text representation of the CSV.
+    """
+    import csv
+
+    rows = []
+    with open(file_path, errors="replace", newline="") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            cells = [cell if cell else "" for cell in row]
+            if any(c.strip() for c in cells):
+                rows.append(" | ".join(cells))
+    return "\n".join(rows)
+
+
 EXTRACTORS = {
     ".pdf": extract_text_from_pdf,
     ".docx": extract_text_from_docx,
     ".txt": extract_text_from_txt,
+    ".xlsx": extract_text_from_xlsx,
+    ".csv": extract_text_from_csv,
 }
 
 
@@ -408,6 +470,81 @@ def build_solicitation_context(row: pd.Series) -> str:
         lines.append(f"\nDescription:\n{desc}")
 
     return "\n".join(lines)
+
+
+def load_and_prepare_opportunities(
+    opportunities_path: str | Path,
+    attachments_dir: str | Path,
+    keep_types: set[str] | None = None,
+) -> pd.DataFrame:
+    """Load opportunities JSON and prepare a DataFrame ready for analysis.
+
+    Replicates the notebook's load → filter → resolve attachments → compute stats →
+    build context pipeline in a single reusable function.
+
+    Args:
+        opportunities_path: Path to the opportunities.json file.
+        attachments_dir: Directory containing downloaded attachment files.
+        keep_types: Set of opportunity type strings to keep. Defaults to
+            {"Combined Synopsis/Solicitation", "Solicitation", "Presolicitation"}.
+
+    Returns:
+        DataFrame with attachment_paths, attachment_count, total_pages, file_types,
+        context, has_attachments, and analyzable columns populated.
+    """
+    if keep_types is None:
+        keep_types = {"Combined Synopsis/Solicitation", "Solicitation", "Presolicitation"}
+
+    opportunities_path = Path(opportunities_path)
+    attachments_dir = Path(attachments_dir)
+
+    with open(opportunities_path) as f:
+        import json
+
+        opportunities_raw = json.load(f)
+
+    logger.info("Loaded %d opportunities from %s", len(opportunities_raw), opportunities_path)
+
+    df = pd.json_normalize(opportunities_raw)
+    df["postedDate"] = pd.to_datetime(df["postedDate"])
+    df["responseDeadLine"] = pd.to_datetime(df["responseDeadLine"], utc=True, errors="coerce")
+
+    # Filter to solicitation types
+    df = df[df["type"].isin(keep_types)].copy().reset_index(drop=True)
+    logger.info("%d opportunities after filtering to types: %s", len(df), sorted(keep_types))
+
+    # Resolve attachment paths
+    def _resolve_attachment_paths(downloaded_files):
+        if not isinstance(downloaded_files, list):
+            return []
+        paths = []
+        for filename in downloaded_files:
+            path = attachments_dir / filename
+            if path.exists() and can_process(path):
+                paths.append(str(path))
+        return paths
+
+    df["attachment_paths"] = df["downloadedFiles"].apply(_resolve_attachment_paths)
+    df["attachment_count"] = df["attachment_paths"].apply(len)
+
+    # Precompute page counts and file type breakdowns
+    compute_attachment_stats(df)
+
+    # Build structured context strings
+    df["context"] = df.apply(build_solicitation_context, axis=1)
+
+    # Flag analyzable opportunities
+    df["has_attachments"] = df["attachment_count"] > 0
+    df["analyzable"] = (df["context"].str.len() > 0) | df["has_attachments"]
+
+    logger.info(
+        "Analyzable: %d / %d (with attachments: %d)",
+        df["analyzable"].sum(),
+        len(df),
+        df["has_attachments"].sum(),
+    )
+
+    return df
 
 
 def build_document_blocks(

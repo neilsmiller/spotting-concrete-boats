@@ -12,6 +12,7 @@ from spotting_concrete_boats.documents import (
     can_process,
     encode_file_as_base64,
     extract_text,
+    load_and_prepare_opportunities,
 )
 from spotting_concrete_boats.sam import SAMClient
 
@@ -25,5 +26,6 @@ __all__ = [
     "encode_file_as_base64",
     "extract_text",
     "evidence_to_dataframe",
+    "load_and_prepare_opportunities",
     "results_to_dataframe",
 ]
