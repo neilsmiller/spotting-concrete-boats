@@ -2,12 +2,15 @@
 
 import csv
 import json
+import logging
 import re
 from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 def sanitize_filename(filename: str) -> str:
@@ -179,7 +182,7 @@ class SAMClient:
             page = data["opportunitiesData"]
             total = data.get("totalRecords", len(page))
             all_opportunities.extend(page)
-            print(f"Fetched {len(all_opportunities)}/{total} opportunities...")
+            logger.info("Fetched %d/%d opportunities...", len(all_opportunities), total)
 
             if len(all_opportunities) >= total or len(page) < self.PAGE_SIZE:
                 break
@@ -242,9 +245,10 @@ class SAMClient:
 
                         downloaded_files.append(filename)
                     except Exception as e:
-                        print(
-                            f"Warning: failed to download attachment for "
-                            f"{opp.get('noticeId')}: {e}"
+                        logger.warning(
+                            "Failed to download attachment for %s: %s",
+                            opp.get("noticeId"),
+                            e,
                         )
 
             opp["downloadedFiles"] = downloaded_files
@@ -272,10 +276,10 @@ class SAMClient:
         descriptions: dict[str, str] = {}
 
         if csv_path and Path(csv_path).exists():
-            print(f"Reading cached CSV from {csv_path}...")
+            logger.info("Reading cached CSV from %s", csv_path)
             csv_text = Path(csv_path).read_text()
         else:
-            print("Downloading SAM.gov full CSV export...")
+            logger.info("Downloading SAM.gov full CSV export...")
             response = self.session.get(self.CSV_URL)
             response.raise_for_status()
             csv_text = response.text
@@ -283,7 +287,7 @@ class SAMClient:
             if csv_path:
                 Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
                 Path(csv_path).write_text(csv_text)
-                print(f"Cached CSV to {csv_path}")
+                logger.info("Cached CSV to %s", csv_path)
 
         reader = csv.DictReader(StringIO(csv_text))
         for row in reader:
@@ -324,19 +328,19 @@ class SAMClient:
         Returns:
             List of enriched opportunity records.
         """
-        print(f"Searching SAM.gov for opportunities {posted_from} - {posted_to}...")
+        logger.info("Searching SAM.gov for opportunities %s - %s...", posted_from, posted_to)
         opportunities = self.search(posted_from, posted_to, **search_kwargs)
-        print(f"Found {len(opportunities)} opportunities")
+        logger.info("Found %d opportunities", len(opportunities))
 
-        print(f"Downloading attachments to {attachments_dir}/...")
+        logger.info("Downloading attachments to %s/...", attachments_dir)
         self.download_attachments(opportunities, attachments_dir)
 
         if enrich and opportunities:
-            print("Enriching with descriptions from SAM.gov CSV...")
+            logger.info("Enriching with descriptions from SAM.gov CSV...")
             self.enrich_with_descriptions(opportunities, csv_path=csv_cache_path)
 
         with open(output_path, "w") as f:
             json.dump(opportunities, f, indent=2)
-        print(f"Saved {len(opportunities)} opportunities to {output_path}")
+        logger.info("Saved %d opportunities to %s", len(opportunities), output_path)
 
         return opportunities
