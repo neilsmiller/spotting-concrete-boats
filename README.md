@@ -13,7 +13,7 @@ For more information about this project, check out a series of articles I am wri
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.11+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) - Fast Python package manager
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
@@ -99,9 +99,8 @@ The notebooks load these automatically via `python-dotenv`. The `.env` file is g
 ### Pre-commit Hooks
 
 Pre-commit hooks are installed as a dev dependency and run automatically before each commit to maintain code quality:
-- **Black** - Code formatting
-- **Ruff** - Fast Python linting
-- **mypy** - Type checking
+- **Ruff** - Code formatting and linting
+- **nbstripout** - Strips notebook outputs before commit
 
 After running `uv sync --all-extras`, install the git hooks with `.venv/bin/pre-commit install` (see Installation section above).
 
@@ -111,16 +110,18 @@ After running `uv sync --all-extras`, install the git hooks with `.venv/bin/pre-
 
 ```
 .
-├── analyze_concrete_boats/    # Jupyter notebooks for analysis
-├── .agents/                   # AI assistant context and patterns
-│   ├── context/              # Project background and domain knowledge
-│   ├── patterns/             # Code patterns and conventions
-│   └── resources/            # Reference materials
-├── .env.example              # Template for environment variables (API keys)
-├── .venv/                    # Virtual environment (auto-generated, not in git)
-├── pyproject.toml            # Project configuration and dependencies
-├── uv.lock                   # Locked dependency versions
-└── .pre-commit-config.yaml   # Code quality checks configuration
+├── spotting_concrete_boats/   # Installable Python package
+│   ├── sam.py                # SAM.gov API client
+│   ├── documents.py          # PDF/DOCX/XLSX text extraction
+│   ├── analyzer.py           # LLM-powered solicitation analysis
+│   └── prompts/              # Analysis prompt templates (sins & virtues)
+├── notebooks/                 # Jupyter notebooks for extraction & analysis
+├── scripts/                   # CLI runner scripts
+├── docs/                      # Reference articles on solicitation sins
+├── .env.example               # Template for environment variables (API keys)
+├── pyproject.toml             # Project configuration and dependencies
+├── uv.lock                    # Locked dependency versions
+└── .pre-commit-config.yaml    # Code quality checks configuration
 ```
 
 ---

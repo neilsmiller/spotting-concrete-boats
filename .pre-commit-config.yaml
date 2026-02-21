@@ -14,6 +14,12 @@ repos:
       - id: debug-statements
       - id: mixed-line-ending
 
+  # Strip notebook outputs
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+
   # Ruff - linter and formatter
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.9
