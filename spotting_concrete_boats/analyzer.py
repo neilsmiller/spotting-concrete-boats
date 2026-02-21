@@ -24,7 +24,7 @@ Usage:
 
 import asyncio
 import concurrent.futures
-import warnings
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +40,8 @@ from spotting_concrete_boats.prompts import (
     PromptConfig,
     discover_prompts,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
@@ -163,8 +165,14 @@ class SolicitationAnalyzer:
             that fail (after retries) are excluded from the result and logged.
 
         Raises:
+            ValueError: If document_blocks is empty.
             KeyError: If any name in ``prompts`` is not a discovered prompt.
         """
+        if not document_blocks:
+            raise ValueError(
+                "No document blocks to analyze. Provide at least one content block "
+                "(text, image, or document)."
+            )
         self._validate_prompt_names(prompts)
         return _run_async(self._analyze_async(document_blocks, prompts=prompts))
 
@@ -199,6 +207,167 @@ class SolicitationAnalyzer:
             for config in self.prompts.values()
         ]
         return pd.DataFrame(rows)
+
+    # --- Batch API ---
+
+    def prepare_batch_requests(
+        self,
+        solicitations: list[dict[str, Any]],
+        prompts: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Build a list of batch request dicts for the Anthropic Message Batches API.
+
+        Each solicitation × prompt combination becomes one request. Uses tool
+        definitions derived from Pydantic schemas to get structured output.
+
+        Args:
+            solicitations: List of dicts with keys:
+                - ``notice_id`` (str): Unique identifier for checkpointing.
+                - ``document_blocks`` (list[dict]): Content blocks for the solicitation.
+            prompts: Optional list of prompt names to include. If None, uses all prompts.
+
+        Returns:
+            List of request dicts ready for ``client.messages.batches.create()``.
+        """
+        self._validate_prompt_names(prompts)
+        configs = (
+            [self.prompts[name] for name in prompts]
+            if prompts is not None
+            else list(self.prompts.values())
+        )
+
+        # System prompt with 1-hour cache (batches run >5 min, so ephemeral 5-min TTL misses)
+        cached_system = [
+            {
+                "type": "text",
+                "text": self.system_prompt,
+                "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            }
+        ]
+
+        requests = []
+        for sol in solicitations:
+            notice_id = sol["notice_id"]
+            doc_blocks = sol["document_blocks"]
+
+            # Stamp the last document block with a 1-hour cache marker so the
+            # shared solicitation content is cached across all prompt variants.
+            cached_doc_blocks = list(doc_blocks)
+            if cached_doc_blocks:
+                last = dict(cached_doc_blocks[-1])
+                last["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+                cached_doc_blocks[-1] = last
+
+            for config in configs:
+                custom_id = f"{notice_id}::{config.name}"
+                tool_def = {
+                    "name": "submit_result",
+                    "description": f"Submit structured result for {config.name}",
+                    "input_schema": config.result_schema.model_json_schema(),
+                }
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            *cached_doc_blocks,
+                            {"type": "text", "text": config.user_prompt},
+                        ],
+                    }
+                ]
+                requests.append(
+                    {
+                        "custom_id": custom_id,
+                        "params": {
+                            "model": self.model,
+                            "max_tokens": self.max_tokens,
+                            "system": cached_system,
+                            "messages": messages,
+                            "tools": [tool_def],
+                            "tool_choice": {"type": "tool", "name": "submit_result"},
+                        },
+                    }
+                )
+
+        logger.info(
+            "Prepared %d batch requests (%d solicitations × %d prompts)",
+            len(requests),
+            len(solicitations),
+            len(configs),
+        )
+        return requests
+
+    def submit_batch(self, requests: list[dict[str, Any]]) -> str:
+        """Submit a batch of requests to the Anthropic Message Batches API.
+
+        Args:
+            requests: List of request dicts from ``prepare_batch_requests()``.
+
+        Returns:
+            The batch ID string for polling.
+        """
+        client = anthropic.Anthropic(api_key=self._client.api_key)
+        batch = client.messages.batches.create(requests=requests)  # type: ignore[arg-type]
+        logger.info("Submitted batch %s (%d requests)", batch.id, len(requests))
+        return batch.id
+
+    def poll_batch(self, batch_id: str, poll_interval: int = 60) -> dict[str, dict[str, dict]]:
+        """Poll a batch until completion and parse results.
+
+        Args:
+            batch_id: The batch ID returned by ``submit_batch()``.
+            poll_interval: Seconds between status checks.
+
+        Returns:
+            Dict mapping notice_id to a dict of prompt_name → parsed result dict.
+        """
+        import time
+
+        client = anthropic.Anthropic(api_key=self._client.api_key)
+
+        while True:
+            batch = client.messages.batches.retrieve(batch_id)
+            logger.info(
+                "Batch %s: %s (succeeded=%d, errored=%d, expired=%d, canceled=%d)",
+                batch_id,
+                batch.processing_status,
+                batch.request_counts.succeeded,
+                batch.request_counts.errored,
+                batch.request_counts.expired,
+                batch.request_counts.canceled,
+            )
+            if batch.processing_status == "ended":
+                break
+            time.sleep(poll_interval)
+
+        # Parse results
+        results: dict[str, dict[str, dict]] = {}
+        result_stream = client.messages.batches.results(batch_id)
+        for entry in result_stream:
+            custom_id = entry.custom_id
+            notice_id, prompt_name = custom_id.split("::", 1)
+
+            if notice_id not in results:
+                results[notice_id] = {}
+
+            if entry.result.type == "succeeded":
+                message = entry.result.message
+                # Extract tool use input from the response
+                for block in message.content:
+                    if block.type == "tool_use":
+                        raw = block.input
+                        # Validate through Pydantic schema
+                        config = self.prompts.get(prompt_name)
+                        if config:
+                            parsed = config.result_schema.model_validate(raw)
+                            results[notice_id][prompt_name] = parsed.model_dump()
+                        else:
+                            results[notice_id][prompt_name] = raw
+                        break
+            else:
+                logger.warning("Batch result failed for %s: %s", custom_id, entry.result.type)
+
+        logger.info("Parsed batch results: %d solicitations with results", len(results))
+        return results
 
     # --- Internal Implementation ---
 
@@ -247,10 +416,10 @@ class SolicitationAnalyzer:
 
         total = len(configs_to_run)
         succeeded = total - len(failures)
-        print(f"Analysis complete: {succeeded}/{total} prompts succeeded.")
+        logger.info("Analysis complete: %d/%d prompts succeeded.", succeeded, total)
         if failures:
             failure_str = ", ".join(failures)
-            warnings.warn(f"Failed: {failure_str}", stacklevel=2)
+            logger.warning("Failed prompts: %s", failure_str)
 
         return results
 
@@ -324,13 +493,16 @@ class SolicitationAnalyzer:
                     system=system,
                     messages=messages,
                     output_format=result_schema,
+                    timeout=300,
                 )
                 return response.parsed_output
             except anthropic.RateLimitError:
                 if attempt < self.max_retries:
-                    print(
-                        f"  Rate limit hit. Waiting {self.retry_wait}s "
-                        f"(retry {attempt + 1}/{self.max_retries})..."
+                    logger.debug(
+                        "Rate limit hit. Waiting %ds (retry %d/%d)...",
+                        self.retry_wait,
+                        attempt + 1,
+                        self.max_retries,
                     )
                     await asyncio.sleep(self.retry_wait)
                 else:
