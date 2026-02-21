@@ -14,16 +14,10 @@ repos:
       - id: debug-statements
       - id: mixed-line-ending
 
-  # Black - code formatter
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
-    hooks:
-      - id: black
-        language_version: python3
-
-  # Ruff - fast Python linter
+  # Ruff - linter and formatter
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.9
     hooks:
+      - id: ruff-format
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
