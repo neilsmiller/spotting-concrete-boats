@@ -54,6 +54,7 @@ class SAMClient:
     ALL_POSTING_TYPES = "p,o,k"
 
     PAGE_SIZE = 1000  # API maximum per request
+    REQUEST_TIMEOUT = 60  # seconds before a request is considered hung
 
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -170,7 +171,7 @@ class SAMClient:
 
         while True:
             params["offset"] = offset
-            response = self.session.get(self.BASE_URL, params=params)
+            response = self.session.get(self.BASE_URL, params=params, timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
             data = response.json()
 
@@ -212,7 +213,8 @@ class SAMClient:
         """
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        for opp in opportunities:
+        total = len(opportunities)
+        for i, opp in enumerate(opportunities):
             # Add office alias for backward compat with analysis.py
             opp["office"] = opp.get("fullParentPathName", "Not specified")
 
@@ -220,12 +222,19 @@ class SAMClient:
             downloaded_files: list[str] = []
 
             if resource_links:
+                logger.info(
+                    "[%d/%d] Downloading %d attachment(s) for %s",
+                    i + 1,
+                    total,
+                    min(len(resource_links), max_per_opportunity),
+                    opp.get("noticeId"),
+                )
                 for url in resource_links[:max_per_opportunity]:
                     try:
                         # Peek at filename via HEAD to check if already downloaded
                         notice_id = opp.get("noticeId", "unknown")
 
-                        resp = self.session.get(url, stream=True)
+                        resp = self.session.get(url, stream=True, timeout=self.REQUEST_TIMEOUT)
                         resp.raise_for_status()
 
                         original_filename = _parse_content_disposition(
@@ -279,10 +288,20 @@ class SAMClient:
             logger.info("Reading cached CSV from %s", csv_path)
             csv_text = Path(csv_path).read_text()
         else:
-            logger.info("Downloading SAM.gov full CSV export...")
-            response = self.session.get(self.CSV_URL)
+            logger.info("Downloading SAM.gov full CSV export (this may take several minutes)...")
+            response = self.session.get(self.CSV_URL, stream=True, timeout=self.REQUEST_TIMEOUT)
             response.raise_for_status()
-            csv_text = response.text
+
+            chunks: list[bytes] = []
+            downloaded = 0
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    chunks.append(chunk)
+                    downloaded += len(chunk)
+                    logger.info("Downloading CSV... %.1f MB", downloaded / 1024 / 1024)
+
+            csv_text = b"".join(chunks).decode("utf-8", errors="replace")
+            logger.info("CSV download complete (%.1f MB)", downloaded / 1024 / 1024)
 
             if csv_path:
                 Path(csv_path).parent.mkdir(parents=True, exist_ok=True)

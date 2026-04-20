@@ -1,12 +1,15 @@
 """Download SBA solicitations from SAM.gov filtered by Product Service Codes."""
 
 import argparse
+import logging
 import os
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 
 from spotting_concrete_boats.sam import SAMClient
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
 
 # Product Service Codes covering SBA-relevant categories
 CLASSIFICATION_CODES = "D,7A,7B,7C,7D,7E,7F,7G,7H,7J,7K,A,B,G,R,L"
