@@ -107,7 +107,7 @@ class SAMClient:
             "typeOfSetAside": set_aside,
             "status": status,
             "q": keyword,
-            "classificationCode": classification_code,
+            "ccode": classification_code,
             "rdlfrom": response_deadline_from,
             "rdlto": response_deadline_to,
         }
