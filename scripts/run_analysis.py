@@ -76,7 +76,7 @@ def write_summary_csv(results_dir: Path, output_path: Path) -> None:
 
     rows = []
     for result_file in result_files:
-        with open(result_file) as f:
+        with open(result_file, encoding="utf-8") as f:
             data = json.load(f)
 
         notice_id = data.get("notice_id", result_file.stem)
@@ -105,7 +105,7 @@ def write_summary_csv(results_dir: Path, output_path: Path) -> None:
     # Collect all column names across all rows for a consistent CSV header
     all_columns = list(dict.fromkeys(col for row in rows for col in row.keys()))
 
-    with open(output_path, "w", newline="") as f:
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=all_columns)
         writer.writeheader()
         writer.writerows(rows)
@@ -216,7 +216,7 @@ def main() -> None:
                 "results": results,
             }
             result_path = results_dir / f"{notice_id}.json"
-            with open(result_path, "w") as f:
+            with open(result_path, "w", encoding="utf-8") as f:
                 json.dump(result_data, f, indent=2)
 
             succeeded += 1

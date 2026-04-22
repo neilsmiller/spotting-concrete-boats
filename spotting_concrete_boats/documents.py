@@ -498,7 +498,7 @@ def load_and_prepare_opportunities(
     opportunities_path = Path(opportunities_path)
     attachments_dir = Path(attachments_dir)
 
-    with open(opportunities_path) as f:
+    with open(opportunities_path, encoding="utf-8") as f:
         import json
 
         opportunities_raw = json.load(f)

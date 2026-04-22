@@ -111,7 +111,7 @@ def save_results(
             "results": prompt_results,
         }
         result_path = results_dir / f"{notice_id}.json"
-        with open(result_path, "w") as f:
+        with open(result_path, "w", encoding="utf-8") as f:
             json.dump(result_data, f, indent=2)
         written += 1
 
@@ -189,7 +189,7 @@ def main() -> None:
 
     if args.prepare_only:
         output_path = data_dir / "batch_requests.json"
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(batch_requests, f, indent=2)
         logger.info("Saved %d batch requests to %s", len(batch_requests), output_path)
         return

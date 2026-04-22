@@ -358,7 +358,7 @@ class SAMClient:
             logger.info("Enriching with descriptions from SAM.gov CSV...")
             self.enrich_with_descriptions(opportunities, csv_path=csv_cache_path)
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(opportunities, f, indent=2)
         logger.info("Saved %d opportunities to %s", len(opportunities), output_path)
 
