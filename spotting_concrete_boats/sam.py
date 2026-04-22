@@ -286,7 +286,7 @@ class SAMClient:
 
         if csv_path and Path(csv_path).exists():
             logger.info("Reading cached CSV from %s", csv_path)
-            csv_text = Path(csv_path).read_text()
+            csv_text = Path(csv_path).read_text(encoding="utf-8")
         else:
             logger.info("Downloading SAM.gov full CSV export (this may take several minutes)...")
             response = self.session.get(self.CSV_URL, stream=True, timeout=self.REQUEST_TIMEOUT)
@@ -305,7 +305,7 @@ class SAMClient:
 
             if csv_path:
                 Path(csv_path).parent.mkdir(parents=True, exist_ok=True)
-                Path(csv_path).write_text(csv_text)
+                Path(csv_path).write_text(csv_text, encoding="utf-8")
                 logger.info("Cached CSV to %s", csv_path)
 
         reader = csv.DictReader(StringIO(csv_text))
