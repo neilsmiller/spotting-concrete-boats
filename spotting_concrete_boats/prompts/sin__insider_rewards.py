@@ -54,11 +54,11 @@ it's selecting for incumbency.
 
 - **Narrow prior-contract requirements**: Requiring multiple completed contracts of \
 a specific dollar threshold (e.g., "$500K+" or "$25M+") in a narrow domain within \
-a short time window (e.g., 2-3 years). The combination of size, specificity, and \
+a short time window (e.g., 2—3 years). The combination of size, specificity, and \
 recency drastically shrinks the eligible pool.
 - **Federal-specific experience mandates**: Requiring years of experience managing \
-specifically "Federal Government programs/contracts" when the underlying skills are \
-not unique to federal work. A vendor with 15 years of excellent commercial IT \
+specifically "Federal Government programs/contracts" when the underlying skills \
+are not unique to federal work. A vendor with 15 years of excellent commercial IT \
 management experience would be disqualified.
 - **Evaluation bonus points for incumbency proxies**: Awarding extra evaluation \
 points for prior contracts of a specific type or size. This doesn't just set a \
@@ -91,8 +91,8 @@ reflects genuine access constraints, not incumbency bias — even though it does
 the vendor pool.
 - **Domain expertise without contract specificity**: "Team must include personnel \
 with experience in healthcare IT systems" is a capability requirement. It becomes \
-insider rewards when it becomes "must have completed three federal healthcare IT \
-contracts exceeding $2M each."
+insider rewards when each key personnel "must have completed three federal \
+healthcare IT contracts exceeding $2M each."
 - **Past performance evaluation**: Evaluating the quality of a vendor's prior work \
 is standard and appropriate. The sin is when the evaluation requires specific \
 quantities of prior contracts at specific dollar levels in specific timeframes.

@@ -31,13 +31,13 @@ uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies (includes pre-commit as a dev dependency)
-uv sync --all-extras
+uv sync --all-extras # On Windows: uv sync --all-extras
 
 # Set up pre-commit hooks to run automatically on commit
-.venv/bin/pre-commit install
+.venv/bin/pre-commit install # On Windows: pre-commit install
 
 # Copy the example env file and add your API keys
-cp .env.example .env
+cp .env.example .env # On Windows: copy .env.example .env
 ```
 
 The project uses `uv` for dependency management and `uv.lock` for reproducible builds. All dependencies are defined in `pyproject.toml`.

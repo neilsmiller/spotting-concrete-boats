@@ -50,8 +50,12 @@ class SAMClient:
 
     # Posting types we care about for solicitation analysis
     # p = Presolicitation, o = Solicitation, k = Combined Synopsis/Solicitation
+    # r = Sources Sought
+    # u = Justification (J&A)
+    # a = Award Notice
     # https://open.gsa.gov/api/get-opportunities-public-api/
-    ALL_POSTING_TYPES = "p,o,k"
+    # ALL_POSTING_TYPES = "p,o,k"
+    ALL_POSTING_TYPES = "p,o,k,r,u,a"
 
     PAGE_SIZE = 1000  # API maximum per request
     REQUEST_TIMEOUT = 60  # seconds before a request is considered hung

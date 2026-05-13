@@ -1,9 +1,9 @@
 """Sin #2: Compliance Over Outcomes.
 
 Compliance over outcomes occurs when a solicitation's quality assurance and
-evaluation processes measure adherence to prescribed processes rather than actual
-performance or results. The government monitors whether the vendor followed the
-rules, not whether the work product achieved its purpose.
+evaluation processes measure adherence to prescribed processes rather than
+actual performance or results. The government monitors whether the vendor
+followed the rules, not whether the work product achieved its purpose.
 
 Usage:
     from spotting_concrete_boats.prompts.sin__compliance_over_outcomes import (
@@ -45,8 +45,8 @@ accountability mechanisms measure whether the vendor followed prescribed process
 rather than whether the work achieved its purpose. The government monitors adherence \
 to the plan — not whether the plan produced results.
 
-The core test: **Does this solicitation define success as "did the work" or "did \
-the work matter"?** When reporting requirements focus on activities performed, \
+The core test: **Does this solicitation define success as "completed documentation"\
+or "did a good job"?** When reporting requirements focus on activities performed, \
 schedule adherence, and process documentation — with no performance targets, user \
 satisfaction metrics, or outcome measures — the QA process assures compliance, not \
 quality.
@@ -98,8 +98,8 @@ contract management. The sin emerges when reporting becomes the primary \
 accountability mechanism.
 
 The key distinction: accountability structures that ask "is the work good?" are \
-outcome-focused. Structures that ask "did you follow the process?" are compliance-focused. \
-The sin is when the latter crowds out the former entirely.
+outcome-focused. Structures that ask "did you follow the process?" are \
+compliance-focused. The sin is when the latter crowds out the former entirely.
 
 ## Relationship to Waterfall Thinking
 
